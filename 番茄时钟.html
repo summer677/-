@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>番茄时钟</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; overflow-x: hidden; }
+:root { --primary: #e74c3c; --primary-dark: #c0392b; --green: #2ecc71; --blue: #3498db; --orange: #e67e22; --card: #1a1a2e; --card2: #16213e; --text: #eee; --text2: #aaa; --border: #333; }
+
+/* 登录页 */
+.login-bg { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%); padding: 20px; }
+.login-box { background: var(--card); border-radius: 20px; padding: 30px 24px; width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.login-box h1 { text-align: center; font-size: 28px; margin-bottom: 6px; color: var(--primary); }
+.login-box p.sub { text-align: center; color: var(--text2); font-size: 13px; margin-bottom: 24px; }
+.input-group { margin-bottom: 14px; }
+.input-group label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+.input-group input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: #0f0f1a; color: #fff; font-size: 15px; outline: none; transition: border 0.3s; }
+.input-group input:focus { border-color: var(--primary); }
+.btn { width: 100%; padding: 13px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:active { background: var(--primary-dark); transform: scale(0.98); }
+.btn-outline { background: transparent; color: var(--primary); border: 1px solid var(--primary); margin-top: 10px; }
+.btn-outline:active { background: rgba(231,76,60,0.1); }
+.otp-row { display: flex; gap: 10px; }
+.otp-row .btn { flex: 1; }
+.error-msg { color: var(--primary); font-size: 13px; margin-top: 10px; text-align: center; min-height: 20px; }
+.success-msg { color: var(--green); font-size: 13px; margin-top: 10px; text-align: center; min-height: 20px; }
+
+/* 主界面 */
+.app { display: none; min-height: 100vh; background: #0f0f1a; }
+.top-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: var(--card); border-bottom: 1px solid var(--border); }
+.top-bar .title { font-size: 18px; font-weight: 700; color: var(--primary); }
+.top-bar .right { display: flex; align-items: center; gap: 12px; }
+.top-bar .stat-badge { font-size: 12px; color: var(--text2); background: var(--card2); padding: 4px 10px; border-radius: 20px; }
+.top-bar .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; }
+
+/* 标签栏 */
+.tab-bar { display: flex; background: var(--card); border-bottom: 1px solid var(--border); }
+.tab-bar .tab { flex: 1; text-align: center; padding: 12px 0; font-size: 14px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; }
+.tab-bar .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* 内容区 */
+.content { padding: 16px; padding-bottom: 80px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* 番茄钟 */
+.timer-card { background: var(--card); border-radius: 20px; padding: 30px 20px; text-align: center; margin-bottom: 16px; }
+.timer-mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
+.timer-mode-btn { padding: 6px 16px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 13px; cursor: pointer; transition: all 0.3s; }
+.timer-mode-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.timer-display { font-size: 72px; font-weight: 200; color: #fff; margin: 10px 0; font-variant-numeric: tabular-nums; }
+.timer-label { font-size: 14px; color: var(--text2); margin-bottom: 20px; }
+.timer-btn-row { display: flex; justify-content: center; gap: 14px; }
+.timer-btn { width: 56px; height: 56px; border-radius: 50%; border: none; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+.timer-btn.play { background: var(--primary); color: #fff; }
+.timer-btn.play:active { background: var(--primary-dark); }
+.timer-btn.stop { background: var(--card2); color: var(--text2); border: 1px solid var(--border); }
+.timer-btn.stop:active { background: #222; }
+
+/* 进度条 */
+.progress-section { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.progress-header span { font-size: 13px; color: var(--text2); }
+.progress-bar-bg { width: 100%; height: 8px; background: var(--card2); border-radius: 4px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--orange)); border-radius: 4px; transition: width 0.5s; width: 0%; }
+
+/* 任务列表 */
+.task-input-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.task-input-row input { flex: 1; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: #fff; font-size: 14px; outline: none; }
+.task-input-row input:focus { border-color: var(--primary); }
+.task-input-row .btn-add { padding: 11px 16px; border-radius: 10px; border: none; background: var(--primary); color: #fff; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.task-input-row .btn-add:active { background: var(--primary-dark); }
+.category-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.cat-tab { padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 12px; cursor: pointer; }
+.cat-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.cat-tab.study.active { background: var(--primary); }
+.cat-tab.work.active { background: var(--blue); border-color: var(--blue); }
+.cat-tab.life.active { background: var(--green); border-color: var(--green); }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-item { display: flex; align-items: center; background: var(--card); border-radius: 12px; padding: 12px 14px; gap: 12px; transition: all 0.3s; }
+.task-item.done { opacity: 0.5; }
+.task-item.done .task-title { text-decoration: line-through; color: var(--text2); }
+.task-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+.task-check.checked { background: var(--green); border-color: var(--green); }
+.task-check.checked::after { content: '✓'; color: #fff; font-size: 12px; }
+.task-info { flex: 1; min-width: 0; }
+.task-title { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-cat { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.task-del { width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: var(--text2); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.task-del:active { color: var(--primary); }
+
+/* 统计页 */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.stat-card { background: var(--card); border-radius: 14px; padding: 16px; text-align: center; }
+.stat-card .num { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stat-card .label { font-size: 12px; color: var(--text2); margin-top: 4px; }
+.streak-card { background: linear-gradient(135deg, var(--primary), var(--orange)); border-radius: 14px; padding: 20px; margin-bottom: 16px; text-align: center; }
+.streak-card .num { font-size: 36px; font-weight: 700; }
+.streak-card .label { font-size: 13px; opacity: 0.9; }
+
+/* 设置页 */
+.settings-card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+.settings-card h3 { font-size: 15px; margin-bottom: 12px; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: none; }
+.setting-row label { font-size: 14px; color: var(--text); }
+.setting-row input { width: 60px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: #0f0f1a; color: #fff; font-size: 14px; text-align: center; outline: none; }
+.setting-row input:focus { border-color: var(--primary); }
+.btn-logout { width: 100%; padding: 13px; border: 1px solid var(--primary); border-radius: 10px; background: transparent; color: var(--primary); font-size: 15px; cursor: pointer; margin-top: 8px; }
+.btn-logout:active { background: rgba(231,76,60,0.1); }
+
+/* Toast */
+.toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0.8); background: rgba(0,0,0,0.85); color: #fff; padding: 14px 28px; border-radius: 12px; font-size: 15px; z-index: 999; opacity: 0; transition: all 0.3s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+
+/* 空状态 */
+.empty { text-align: center; padding: 40px 20px; color: var(--text2); font-size: 14px; }
+.empty .icon { font-size: 40px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div class="login-bg" id="loginPage">
+  <div class="login-box">
+    <h1 id="loginTitle">🍅 番茄时钟</h1>
+    <p class="sub" id="loginSub">专注每一刻，收获每一天</p>
+    <div id="emailStep">
+      <div class="input-group">
+        <label>邮箱地址</label>
+        <input type="email" id="emailInput" placeholder="请输入你的邮箱">
+      </div>
+      <button class="btn btn-primary" id="sendOtpBtn" onclick="sendOTP()">发送验证码</button>
+    </div>
+    <div id="otpStep" style="display:none;">
+      <div class="input-group">
+        <label>验证码</label>
+        <input type="text" id="otpInput" placeholder="请输入 6 位验证码" maxlength="6" inputmode="numeric">
+      </div>
+      <div class="otp-row">
+        <button class="btn btn-outline" onclick="backToEmail()">返回</button>
+        <button class="btn btn-primary" onclick="verifyOTP()">验证并登录</button>
+      </div>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="success-msg" id="successMsg"></div>
+  </div>
+</div>
+
+<!-- 主应用 -->
+<div class="app" id="appPage">
+  <!-- 顶部 -->
+  <div class="top-bar">
+    <div class="title">🍅 番茄时钟</div>
+    <div class="right">
+      <span class="stat-badge" id="topPomodoro">🍅 0</span>
+      <div class="avatar" id="avatarBtn" onclick="showPage('settings')">🍅</div>
+    </div>
+  </div>
+
+  <!-- 标签栏 -->
+  <div class="tab-bar">
+    <div class="tab active" data-tab="timer" onclick="switchTab('timer',this)">🍅 专注</div>
+    <div class="tab" data-tab="tasks" onclick="switchTab('tasks',this)">✅ 任务</div>
+    <div class="tab" data-tab="stats" onclick="switchTab('stats',this)">📊 统计</div>
+    <div class="tab" data-tab="settings" onclick="switchTab('settings',this)">⚙️ 设置</div>
+  </div>
+
+  <div class="content">
+    <!-- 番茄钟页 -->
+    <div class="page active" id="page-timer">
+      <div class="timer-card">
+        <div class="timer-mode-row">
+          <button class="timer-mode-btn active" id="modeFocus" onclick="setMode('focus',this)">专注</button>
+          <button class="timer-mode-btn" id="modeShort" onclick="setMode('short',this)">短休</button>
+          <button class="timer-mode-btn" id="modeLong" onclick="setMode('long',this)">长休</button>
+        </div>
+        <div class="timer-display" id="timerDisplay">25:00</div>
+        <div class="timer-label" id="timerLabel">准备开始专注吧！</div>
+        <div class="timer-btn-row">
+          <button class="timer-btn play" id="playBtn" onclick="toggleTimer()">▶</button>
+          <button class="timer-btn stop" id="stopBtn" onclick="resetTimer()" style="display:none;">■</button>
+        </div>
+      </div>
+      <div class="progress-section">
+        <div class="progress-header">
+          <span>今日任务进度</span>
+          <span id="progressText">0/0</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任务页 -->
+    <div class="page" id="page-tasks">
+      <div class="task-input-row">
+        <input type="text" id="taskInput" placeholder="添加新任务..." onkeydown="if(event.key==='Enter')addTask()">
+        <button class="btn-add" onclick="addTask()">＋</button>
+      </div>
+      <div class="category-tabs" id="categoryTabs">
+        <button class="cat-tab active" data-cat="all" onclick="filterCat('all',this)">全部</button>
+        <button class="cat-tab study" data-cat="study" onclick="filterCat('study',this)">📚 学习</button>
+        <button class="cat-tab work" data-cat="work" onclick="filterCat('work',this)">💼 工作</button>
+        <button class="cat-tab life" data-cat="life" onclick="filterCat('life',this)">🌿 生活</button>
+      </div>
+      <div class="task-list" id="taskList"></div>
+    </div>
+
+    <!-- 统计页 -->
+    <div class="page" id="page-stats">
+      <div class="streak-card">
+        <div class="num" id="streakNum">0</div>
+        <div class="label">🔥 连续专注天数</div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">任务总数</div></div>
+        <div class="stat-card"><div class="num" id="statDone">0</div><div class="label">已完成</div></div>
+        <div class="stat-card"><div class="num" id="statPomo">0</div><div class="label">🍅 专注次数</div></div>
+        <div class="stat-card"><div class="num" id="statMinutes">0</div><div class="label">⏱ 累计分钟</div></div>
+      </div>
+    </div>
+
+    <!-- 设置页 -->
+    <div class="page" id="page-settings">
+      <div class="settings-card">
+        <h3>⏱ 番茄钟时长</h3>
+        <div class="setting-row">
+          <label>专注时长（分钟）</label>
+          <input type="number" id="setFocus" value="25" min="1" max="60" onchange="saveSettings()">
+        </div>
+        <div class="setting-row">
+          <label>短休时长（分钟）</label>
+          <input type="number" id="setShort" value="5" min="1" max="30" onchange="saveSettings()">
+        </div>
+        <div class="setting-row">
+          <label>长休时长（分钟）</label>
+          <input type="number" id="setLong" value="15" min="1" max="60" onchange="saveSettings()">
+        </div>
+      </div>
+      <div class="settings-card">
+        <h3>👤 账户</h3>
+        <div class="setting-row">
+          <label>当前用户</label>
+          <span style="font-size:13px;color:var(--text2);" id="currentUser">-</span>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== Supabase 配置 ==========
+const SUPABASE_URL = 'https://uqobordhbhwxltresvhu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxb2JvcmRoYmh3eGx0cmVzdmh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyOTYxMjksImV4cCI6MjA5Nzg3MjEyOX0.hApCCb7f4qzzkwBfn0obFF_qTkkKGnz4FmDskzPBsAw';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ========== 全局状态 ==========
+let tasks = [];
+let currentCat = 'all';
+let timerInterval = null;
+let timerRunning = false;
+let timerSeconds = 25 * 60;
+let currentMode = 'focus';
+let settings = { focus: 25, short: 5, long: 15 };
+let stats = { pomodoro_count: 0, total_minutes: 0, streak_days: 0 };
+
+// ========== 登录逻辑 ==========
+async function checkSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) { showApp(); loadData(); }
+}
+checkSession();
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN') { showApp(); loadData(); }
+  if (event === 'SIGNED_OUT') { showLogin(); }
+});
+
+function showLogin() {
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('appPage').style.display = 'none';
+}
+function showApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('appPage').style.display = 'block';
+  const user = supabase.auth.getUser();
+  user.then(({ data }) => {
+    if (data.user) {
+      const email = data.user.email || '';
+      document.getElementById('currentUser').textContent = email;
+      const initial = email.charAt(0).toUpperCase();
+      document.getElementById('avatarBtn').textContent = initial || '🍅';
+    }
+  });
+  resetTimer();
+  loadSettings();
+}
+
+async function sendOTP() {
+  const email = document.getElementById('emailInput').value.trim();
+  if (!email) { showError('请输入邮箱地址'); return; }
+  if (!email.includes('@')) { showError('请输入有效的邮箱'); return; }
+  showError('');
+  document.getElementById('sendOtpBtn').textContent = '发送中...';
+  document.getElementById('sendOtpBtn').disabled = true;
+  const { error } = await supabase.auth.signInWithOtp({ email });
+  document.getElementById('sendOtpBtn').textContent = '发送验证码';
+  document.getElementById('sendOtpBtn').disabled = false;
+  if (error) { showError('发送失败：' + error.message); return; }
+  showSuccess('验证码已发送到 ' + email + '，请查收（包括垃圾邮件箱）');
+  document.getElementById('emailStep').style.display = 'none';
+  document.getElementById('otpStep').style.display = 'block';
+}
+
+function backToEmail() {
+  document.getElementById('emailStep').style.display = 'flex';
+  document.getElementById('otpStep').style.display = 'none';
+  showError(''); showSuccess('');
+}
+
+async function verifyOTP() {
+  const email = document.getElementById('emailInput').value.trim();
+  const token = document.getElementById('otpInput').value.trim();
+  if (token.length !== 6) { showError('请输入 6 位验证码'); return; }
+  showError(''); showSuccess('');
+  const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+  if (error) { showError('验证失败：' + error.message); return; }
+  showSuccess('登录成功！正在跳转...');
+}
+
+function showError(msg) { document.getElementById('errorMsg').textContent = msg; document.getElementById('successMsg').textContent = ''; }
+function showSuccess(msg) { document.getElementById('successMsg').textContent = msg; document.getElementById('errorMsg').textContent = ''; }
+
+async function logout() {
+  await supabase.auth.signOut();
+  tasks = [];
+  showLogin();
+}
+
+// ========== 标签切换 ==========
+function switchTab(page, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  if (page === 'stats') renderStats();
+  if (page === 'tasks') renderTasks();
+}
+
+// ========== 番茄钟 ==========
+function setMode(mode, btn) {
+  document.querySelectorAll('.timer-mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentMode = mode;
+  resetTimer();
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  document.getElementById('playBtn').textContent = '▶';
+  document.getElementById('stopBtn').style.display = 'none';
+  let mins;
+  if (currentMode === 'focus') mins = settings.focus;
+  else if (currentMode === 'short') mins = settings.short;
+  else mins = settings.long;
+  timerSeconds = mins * 60;
+  updateTimerDisplay();
+  const labels = { focus: '准备开始专注吧！', short: '休息一下，放松眼睛 🌿', long: '好好休息，充充电 🔋' };
+  document.getElementById('timerLabel').textContent = labels[currentMode];
+}
+
+function toggleTimer() {
+  if (timerRunning) {
+    clearInterval(timerInterval);
+    timerRunning = false;
+    document.getElementById('playBtn').textContent = '▶';
+    document.getElementById('stopBtn').style.display = 'none';
+  } else {
+    timerRunning = true;
+    document.getElementById('playBtn').textContent = '⏸';
+    document.getElementById('stopBtn').style.display = 'flex';
+    timerInterval = setInterval(() => {
+      timerSeconds--;
+      updateTimerDisplay();
+      if (timerSeconds <= 0) { timerComplete(); }
+    }, 1000);
+  }
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timerSeconds / 60);
+  const s = timerSeconds % 60;
+  document.getElementById('timerDisplay').textContent =
+    String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function timerComplete() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  document.getElementById('playBtn').textContent = '▶';
+  document.getElementById('stopBtn').style.display = 'none';
+  // 振动 + 提示
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  const modeLabels = { focus: '🍅 专注完成！休息一下吧', short: '⏰ 休息结束，继续加油！', long: '⏰ 长休结束，满血复活！' };
+  showToast(modeLabels[currentMode]);
+  if (currentMode === 'focus') {
+    stats.pomodoro_count++;
+    stats.total_minutes += settings.focus;
+    saveStats();
+  }
+  resetTimer();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ========== 任务管理 ==========
+async function loadData() {
+  const { data: t } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
+  tasks = t || [];
+  renderTasks();
+  updateProgress();
+  loadStats();
+}
+
+function filterCat(cat, el) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderTasks();
+}
+
+function renderTasks() {
+  const list = document.getElementById('taskList');
+  let filtered = tasks;
+  if (currentCat !== 'all') filtered = tasks.filter(t => t.category === currentCat);
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="icon">📝</div>暂无任务，添加一个吧！</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(task => {
+    const catEmoji = { study: '📚', work: '💼', life: '🌿' };
+    const catName = { study: '学习', work: '工作', life: '生活' };
+    return `
+    <div class="task-item ${task.done ? 'done' : ''}" data-id="${task.id}">
+      <div class="task-check ${task.done ? 'checked' : ''}" onclick="toggleTask('${task.id}')"></div>
+      <div class="task-info">
+        <div class="task-title">${escapeHtml(task.title)}</div>
+        <div class="task-cat">${catEmoji[task.category] || ''} ${catName[task.category] || ''}</div>
+      </div>
+      <button class="task-del" onclick="deleteTask('${task.id}')">✕</button>
+    </div>`;
+  }).join('');
+  updateProgress();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+async function addTask() {
+  const input = document.getElementById('taskInput');
+  const title = input.value.trim();
+  if (!title) return;
+  const cat = currentCat === 'all' ? 'study' : currentCat;
+  const { data, error } = await supabase.from('tasks').insert({ title, category: cat, done: false }).select();
+  if (!error && data) { tasks.unshift(data[0]); input.value = ''; renderTasks(); }
+}
+
+async function toggleTask(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  const newDone = !task.done;
+  await supabase.from('tasks').update({ done: newDone }).eq('id', id);
+  task.done = newDone;
+  renderTasks();
+  if (newDone) showToast('✅ 任务完成！');
+}
+
+async function deleteTask(id) {
+  await supabase.from('tasks').delete().eq('id', id);
+  tasks = tasks.filter(t => t.id !== id);
+  renderTasks();
+}
+
+function updateProgress() {
+  const total = tasks.length;
+  const done = tasks.filter(t => t.done).length;
+  document.getElementById('progressText').textContent = done + '/' + total;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('topPomodoro').textContent = '🍅 ' + stats.pomodoro_count;
+}
+
+// ========== 统计 ==========
+async function loadStats() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { data } = await supabase.from('user_stats').select('*').eq('user_id', user.id).single();
+  if (data) stats = { ...stats, ...data };
+  renderStats();
+}
+
+async function saveStats() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('user_stats').upsert({ user_id: user.id, ...stats, updated_at: new Date() });
+}
+
+function renderStats() {
+  document.getElementById('statTotal').textContent = tasks.length;
+  document.getElementById('statDone').textContent = tasks.filter(t => t.done).length;
+  document.getElementById('statPomo').textContent = stats.pomodoro_count;
+  document.getElementById('statMinutes').textContent = stats.total_minutes;
+  document.getElementById('streakNum').textContent = stats.streak_days;
+}
+
+// ========== 设置 ==========
+function loadSettings() {
+  const s = localStorage.getItem('fanqie_settings');
+  if (s) { settings = JSON.parse(s); }
+  document.getElementById('setFocus').value = settings.focus;
+  document.getElementById('setShort').value = settings.short;
+  document.getElementById('setLong').value = settings.long;
+}
+
+function saveSettings() {
+  settings.focus = parseInt(document.getElementById('setFocus').value) || 25;
+  settings.short = parseInt(document.getElementById('setShort').value) || 5;
+  settings.long = parseInt(document.getElementById('setLong').value) || 15;
+  localStorage.setItem('fanqie_settings', JSON.stringify(settings));
+  resetTimer();
+  showToast('✅ 设置已保存');
+}
+</script>
+</body>
+</html>
